@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 import mapboxgl from 'mapbox-gl'
 import axios from 'axios'
+import CrimeChart from './crime-chart.jsx'
 
 mapboxgl.accessToken = process.env.REACT_APP_MAPBOX_TOKEN;
 class Application extends React.Component {
@@ -9,9 +10,10 @@ class Application extends React.Component {
   constructor(props: Props) {
     super(props);
     this.state = {
-      lng: -2.3,
-      lat: 51.4,
-      zoom: 10
+      lng: -2.35,
+      lat: 51.39,
+      zoom: 12,
+      crimes: {}
     };
   }
 
@@ -20,7 +22,7 @@ class Application extends React.Component {
 
     const map = new mapboxgl.Map({
       container: this.mapContainer,
-      style: 'mapbox://styles/mapbox/satellite-streets-v9',
+      style: 'mapbox://styles/mapbox/outdoors-v11?optimize=true',
       center: [lng, lat],
       zoom
     });
@@ -36,52 +38,93 @@ class Application extends React.Component {
     });
 
     map.on('load', async () => {
-      const darkness = await axios.get('http://127.0.0.1:3000/api/darkness');
-      console.log(darkness)
-      
-      map.addSource('darkness', {
-        type: 'geojson',
-        data: {
-          type: "FeatureCollection",
-          features: [ darkness.data.feature ]
-        }
-      });
-      map.addLayer({
-        'id': 'the_darkness',
-        'type': 'fill',
-        'layout': {
-          'visibility': 'visible',
-        },
-        'source': 'darkness'
+      map.addSource('greenspace_tiles', {
+        type: 'vector',
+        url: 'mapbox://kyliepace.cjv9ipamn0l8l2xoecwrwier2-6lbjl'
       });
 
-      const paths = await axios.get('http://127.0.0.1:3000/api/paths');
-      map.addSource('paths', {
-        type: 'geojson',
-        data: {
-          type: "FeatureCollection",
-          features: paths.data.features
+      map.addLayer({
+        id: 'greenspaces',
+        type: 'fill',
+        source: 'greenspace_tiles',
+        'source-layer': 'bath-greenspaces',
+        paint: {
+          "fill-color": "#888888",
+          "fill-outline-color": "black",
+          "fill-opacity": 0.7
         }
       });
-      map.addLayer({
-        'id': 'bike_paths',
-        'type': 'fill',
-        'layout': {
-          'visibility': 'visible',
-        },
-        'source': 'paths'
-      });
-
     });
-  }
+
+
+    map.on('click', 'greenspaces', async e => {
+      // send e.lngLat to server
+      const crime = await axios.get(`${process.env.REACT_APP_API_URL}/api/crime`, {
+        params: {
+          point: e.lngLat
+        }
+      });
+
+      const features = crime.data.map(datum => {
+        const cat = datum.category;
+        if (!this.state.crimes[cat]){
+          this.state.crimes[cat] = 1;
+        }
+        else {
+          this.state.crimes[cat] ++
+        }
+        return {
+          type: 'Feature',
+          properties: {
+            category: cat,
+            title: 'crime point',
+            icon: 'point'
+          },
+          geometry: datum.point
+        }
+      });
+
+      this.setState({crimes: this.state.crimes})
+
+      var mapLayer = map.getLayer('crime-points');
+      if (mapLayer){
+        map.getSource('crime-points').setData({
+          type: 'FeatureCollection',
+          features: features
+        });
+      }
+      else {
+        map.addSource('crime-points', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            features: features
+          }
+        });
+  
+        map.addLayer({
+          id: 'crime-points',
+          type: 'circle',
+          source: 'crime-points',
+          paint: {
+            "circle-radius": 6,
+            "circle-color": "#B42222"
+          }
+        });
+      }
+
+      console.log(this.state.crimes)
+    });
+  };
 
   render() {
     const { lng, lat, zoom } = this.state;
-
+    
     return (
       <div>
         <div className='inline-block absolute top left mt12 ml12 bg-darken75 color-white z1 py6 px12 round-full txt-s txt-bold'>
           <div>{`Longitude: ${lng} Latitude: ${lat} Zoom: ${zoom}`}</div>
+          <CrimeChart crimes={this.state.crimes} />
         </div>
         <div id='map' ref={el => this.mapContainer = el} className='absolute top right left bottom' />
       </div>
