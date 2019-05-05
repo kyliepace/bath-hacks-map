@@ -4,7 +4,7 @@ const CrimeChart = (props) => {
   if (!crimes.length){ return null; }
   
   const crimeKeys = crimes.map(cat => {
-    let total = props.crims[cat];
+    let total = props.crimes[cat];
     let proportion = total/crimes.length;
     return (
       <div key={cat} >

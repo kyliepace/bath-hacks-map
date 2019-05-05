@@ -59,11 +59,14 @@ class Application extends React.Component {
 
     map.on('click', 'greenspaces', async e => {
       // send e.lngLat to server
+      this.state.crime = {}
       const crime = await axios.get(`${process.env.REACT_APP_API_URL}/api/crime`, {
         params: {
           point: e.lngLat
         }
       });
+
+      console.log(crime.data)
 
       const features = crime.data.map(datum => {
         const cat = datum.category;
